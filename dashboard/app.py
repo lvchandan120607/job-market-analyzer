@@ -30,7 +30,8 @@ else:
 # DATA PREPARATION
 # -----------------------------
 
-data = data.dropna(subset=["title"])
+if "title" in data.columns:
+    data = data.dropna(subset=["title"])
 
 salary_df = data.copy()
 
