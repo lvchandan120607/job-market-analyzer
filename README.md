@@ -1,5 +1,10 @@
 # Job Market Analyzer
 
+A data analytics project that analyzes job market trends using Python, SQL, and an interactive Streamlit dashboard.
+
+## Live Dashboard
+[Open Dashboard](https://job-market-analyzer-xbhykspba7bs9jbwharsxd.streamlit.app/)
+
 ## Overview
 This project analyzes job market trends using Python, SQL, and an interactive Streamlit dashboard.
 
