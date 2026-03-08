@@ -8,15 +8,10 @@ st.set_page_config(page_title="Job Market Analyzer", layout="wide")
 st.title("Job Market Analysis Dashboard")
 
 # -----------------------------
-# DATA SOURCE (UPLOAD OR DATABASE)
+# DATA SOURCE
 # -----------------------------
-
 st.sidebar.header("Upload Dataset")
-
-uploaded_file = st.sidebar.file_uploader(
-    "Upload CSV file",
-    type=["csv"]
-)
+uploaded_file = st.sidebar.file_uploader("Upload CSV file", type=["csv"])
 
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
@@ -27,80 +22,98 @@ else:
     st.info("Using default dataset")
 
 # -----------------------------
-# DATA PREPARATION
+# CLEAN COLUMN NAMES
 # -----------------------------
+data.columns = data.columns.str.lower().str.strip()
 
-if "title" in data.columns:
-    data = data.dropna(subset=["title"])
+# -----------------------------
+# COLUMN DETECTION
+# -----------------------------
+title_col = None
+company_col = None
+jobtype_col = None
+salary_col = None
+
+for col in data.columns:
+    if "title" in col:
+        title_col = col
+    if "company" in col:
+        company_col = col
+    if "type" in col or "location" in col:
+        jobtype_col = col
+    if "salary" in col:
+        salary_col = col
+
+# -----------------------------
+# DATA PREP
+# -----------------------------
+if title_col:
+    data = data.dropna(subset=[title_col])
 
 salary_df = data.copy()
 
-if "salary" in salary_df.columns:
-    salary_df["salary"] = salary_df["salary"].astype(str)
-    salary_df["salary"] = salary_df["salary"].str.replace("£", "", regex=False)
-    salary_df["salary"] = salary_df["salary"].str.extract(r'(\d+)')
-    salary_df["salary"] = pd.to_numeric(salary_df["salary"], errors="coerce")
+if salary_col:
+    salary_df[salary_col] = salary_df[salary_col].astype(str)
+    salary_df[salary_col] = salary_df[salary_col].str.replace("£", "", regex=False)
+    salary_df[salary_col] = salary_df[salary_col].str.extract(r'(\d+)')
+    salary_df[salary_col] = pd.to_numeric(salary_df[salary_col], errors="coerce")
 
 # -----------------------------
-# KPI METRICS
+# KPIs
 # -----------------------------
-
 total_jobs = len(data)
-unique_companies = data["company_name"].nunique()
 
-remote_jobs = data["job_type"].str.contains(
-    "remote",
-    case=False,
-    na=False
-).sum()
+unique_companies = (
+    data[company_col].nunique() if company_col else 0
+)
 
-avg_salary = int(
-    salary_df["salary"].mean()
-) if salary_df["salary"].notnull().any() else 0
+remote_jobs = (
+    data[jobtype_col]
+    .str.contains("remote", case=False, na=False)
+    .sum() if jobtype_col else 0
+)
+
+avg_salary = (
+    int(salary_df[salary_col].mean())
+    if salary_col and salary_df[salary_col].notnull().any()
+    else 0
+)
 
 # -----------------------------
 # SIDEBAR FILTERS
 # -----------------------------
-
 st.sidebar.header("Filters")
-
-job_type = st.sidebar.selectbox(
-    "Job Type",
-    ["All"] + sorted(data["job_type"].dropna().unique())
-)
-
-company = st.sidebar.selectbox(
-    "Company",
-    ["All"] + sorted(data["company_name"].dropna().unique())
-)
 
 filtered_data = data.copy()
 
-if job_type != "All":
-    filtered_data = filtered_data[
-        filtered_data["job_type"] == job_type
-    ]
+if jobtype_col:
+    jobtype_options = ["All"] + sorted(data[jobtype_col].dropna().unique())
+    selected_jobtype = st.sidebar.selectbox("Job Type", jobtype_options)
 
-if company != "All":
-    filtered_data = filtered_data[
-        filtered_data["company_name"] == company
-    ]
+    if selected_jobtype != "All":
+        filtered_data = filtered_data[
+            filtered_data[jobtype_col] == selected_jobtype
+        ]
+
+if company_col:
+    company_options = ["All"] + sorted(data[company_col].dropna().unique())
+    selected_company = st.sidebar.selectbox("Company", company_options)
+
+    if selected_company != "All":
+        filtered_data = filtered_data[
+            filtered_data[company_col] == selected_company
+        ]
 
 # -----------------------------
 # TABS
 # -----------------------------
-
-tab1, tab2, tab3, tab4 = st.tabs([
-    "Overview",
-    "Job Analysis",
-    "Salary Insights",
-    "SQL Analytics"
-])
+tab1, tab2, tab3, tab4 = st.tabs(
+    ["Overview", "Job Analysis", "Salary Insights", "SQL Analytics"]
+)
 
 # -----------------------------
-# TAB 1 : OVERVIEW
+# TAB 1
 # -----------------------------
-
 with tab1:
 
     st.header("Market Overview")
@@ -116,68 +129,71 @@ with tab1:
     st.dataframe(filtered_data.head())
 
 # -----------------------------
-# TAB 2 : JOB ANALYSIS
+# TAB 2
 # -----------------------------
-
 with tab2:
 
-    titles = (
-        filtered_data["title"]
-        .value_counts()
-        .reset_index()
-    )
+    if title_col:
 
-    titles.columns = ["title", "count"]
+        titles = (
+            filtered_data[title_col]
+            .value_counts()
+            .reset_index()
+        )
 
-    fig_titles = px.bar(
-        titles.head(10),
-        x="title",
-        y="count",
-        color="count",
-        title="Most In-Demand Job Titles"
-    )
+        titles.columns = ["title", "count"]
 
-    st.plotly_chart(fig_titles, use_container_width=True)
+        fig_titles = px.bar(
+            titles.head(10),
+            x="title",
+            y="count",
+            title="Most In-Demand Job Titles",
+            color="count"
+        )
 
-    companies = (
-        filtered_data["company_name"]
-        .value_counts()
-        .reset_index()
-    )
+        st.plotly_chart(fig_titles, use_container_width=True)
 
-    companies.columns = ["company", "count"]
+    if company_col:
 
-    fig_companies = px.bar(
-        companies.head(10),
-        x="company",
-        y="count",
-        color="count",
-        title="Top Hiring Companies"
-    )
+        companies = (
+            filtered_data[company_col]
+            .value_counts()
+            .reset_index()
+        )
 
-    st.plotly_chart(fig_companies, use_container_width=True)
+        companies.columns = ["company", "count"]
+
+        fig_companies = px.bar(
+            companies.head(10),
+            x="company",
+            y="count",
+            title="Top Hiring Companies",
+            color="count"
+        )
+
+        st.plotly_chart(fig_companies, use_container_width=True)
 
 # -----------------------------
-# TAB 3 : SALARY INSIGHTS
+# TAB 3
 # -----------------------------
-
 with tab3:
 
-    st.subheader("Salary Distribution")
+    if salary_col:
 
-    fig_salary = px.histogram(
-        salary_df,
-        x="salary",
-        nbins=25,
-        color_discrete_sequence=["#3366cc"]
-    )
+        st.subheader("Salary Distribution")
 
-    st.plotly_chart(fig_salary, use_container_width=True)
+        fig_salary = px.histogram(
+            salary_df,
+            x=salary_col,
+            nbins=25,
+            title="Salary Distribution"
+        )
+
+        st.plotly_chart(fig_salary, use_container_width=True)
 
 # -----------------------------
-# TAB 4 : SQL ANALYTICS
+# TAB 4
 # -----------------------------
-
 with tab4:
 
     st.subheader("Run SQL Queries")
